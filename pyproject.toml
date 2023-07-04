@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+
+[tool.black]
+line-length = 79
+
+[tool.pycln]
+all = true
+
+[tool.isort]
+profile = "black"
