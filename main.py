@@ -1,9 +1,10 @@
 import logging
 import os
-from multiprocessing import Process
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+from config import create_config
 
 logger = logging.getLogger(__name__)
 
@@ -23,32 +24,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def read_token() -> str:
-    token = os.environ.get("TG_API_TOKEN")
-    if token is None:
-        raise RuntimeError("Token should be in environment as TG_API_TOKEN")
-    return token
-
-
-def start_heartbeat_server():
-    from aiohttp import web
-
-    async def hello(request):
-        return web.Response(text="i'm alive")
-
-    web_app = web.Application()
-    web_app.add_routes([web.get("/", hello)])
-
-    web.run_app(web_app, host="0.0.0.0", port=3000)
-
-
 if __name__ == "__main__":
-    web_proc = Process(target=start_heartbeat_server)
-    web_proc.start()
+    cfg = create_config(os.environ)
 
-    application = ApplicationBuilder().token(read_token()).build()
+    application = ApplicationBuilder().token(cfg.tg_api_token).build()
 
     start_handler = CommandHandler("start", start)
     application.add_handler(start_handler)
 
-    application.run_polling()
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=443,
+        webhook_url=cfg.service_url,
+        secret_token=cfg.secret_token,
+    )
