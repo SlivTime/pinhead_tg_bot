@@ -1,5 +1,6 @@
 import logging
 import os
+from multiprocessing import Process
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -29,7 +30,22 @@ def read_token() -> str:
     return token
 
 
+def start_heartbeat_server():
+    from aiohttp import web
+
+    async def hello(request):
+        return web.Response(text="i'm alive")
+
+    web_app = web.Application()
+    web_app.add_routes([web.get("/", hello)])
+
+    web.run_app(web_app, host="0.0.0.0", port=3000)
+
+
 if __name__ == "__main__":
+    web_proc = Process(target=start_heartbeat_server)
+    web_proc.start()
+
     application = ApplicationBuilder().token(read_token()).build()
 
     start_handler = CommandHandler("start", start)
