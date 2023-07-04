@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     application.run_webhook(
         listen="0.0.0.0",
-        port=443,
+        port=cfg.service_port,
         webhook_url=cfg.service_url,
         secret_token=cfg.secret_token,
     )
