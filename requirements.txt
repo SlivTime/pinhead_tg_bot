@@ -1,4 +1,4 @@
-python-telegram-bot[webhooks,job-queue]==20.3
+python-telegram-bot[ext]==20.4
 aiohttp==3.8.4
 marshmallow-recipe==0.0.22
 click==8.1.4
