@@ -17,6 +17,9 @@ deps:
 run:
 	python main.py
 
+poll:
+	python main.py --polling
+
 lint:
 	pre-commit run --all-files
 

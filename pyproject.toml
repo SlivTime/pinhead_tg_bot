@@ -10,3 +10,5 @@ all = true
 
 [tool.isort]
 profile = "black"
+line_length = 72
+multi_line_output = 3
