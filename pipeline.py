@@ -183,17 +183,14 @@ async def process_pipeline_step(
 
 
 async def execute_scheduled_actions(ctx: CallbackContext) -> None:
-    logger.info("Execute scheduled actions")
+    logger.debug("Execute scheduled actions")
     async with lock:
         logger.info("Got lock")
-        await asyncio.sleep(2)
-        logger.info("Sleep done")
         for action in iterate_scheduled_actions(ctx.bot_data):
-            logger.info(f"Got scheduled jobs: {action}")
+            logger.info(f"Got scheduled action: {action}")
             await process_pipeline_step(ctx, action)
         logger.info("Processed tasks")
-
-    logger.info("Lock released")
+    logger.debug("Lock released")
 
 
 def run_pipeline_now(ctx: CallbackContext) -> None:
