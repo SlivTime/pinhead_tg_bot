@@ -1,6 +1,7 @@
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
+import pytz
 from telegram import Message, Update, User
 from telegram.ext import (
     Application,
@@ -34,7 +35,7 @@ def pipeline_start_fabric(action_type: ActionType):
     async def start_pipeline(
         update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=pytz.UTC)
         target = _extract_target(action_type, update.message)
         chat_id = update.effective_chat.id if update.effective_chat else None
         if not target:
@@ -112,7 +113,7 @@ async def bot_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     await ensured(update.message).reply_text(
         "Available commands:\n"
         "/pin - pin message\n"
-        "/mute - mute chat\n"
+        "/mute - mute user\n"
         "/delete - delete message\n"
         "/ban - ban user\n"
         "/purge - ban user and delete all messages (hello crypto-boys!)\n"

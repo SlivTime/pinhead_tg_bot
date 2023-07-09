@@ -1,8 +1,9 @@
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import cast
 
+import pytz
 from telegram.ext import CallbackContext, JobQueue
 
 from constants import YES_NO_OPTIONS
@@ -90,7 +91,7 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
             await ctx.bot.ban_chat_member(
                 action.chat_id,
                 action.target_id,
-                until_date=datetime.now(tz=UTC)
+                until_date=datetime.now(tz=pytz.UTC)
                 + timedelta(seconds=action.duration),
             )
         case ActionType.PURGE:
@@ -104,7 +105,7 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
             await ctx.bot.restrict_chat_member(
                 action.chat_id,
                 action.target_id,
-                until_date=datetime.now(tz=UTC)
+                until_date=datetime.now(tz=pytz.UTC)
                 + timedelta(seconds=action.duration),
                 can_send_messages=False,
                 can_send_media_messages=False,
@@ -115,7 +116,7 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
             logger.warning("Not implemented yet")
 
     if action.duration:
-        action.execute_at = datetime.now(tz=UTC) + timedelta(
+        action.execute_at = datetime.now(tz=pytz.UTC) + timedelta(
             seconds=action.duration
         )
         return action, PipelineStep.REVERT
@@ -146,7 +147,7 @@ async def cleanup(ctx, action) -> None:
 async def process_pipeline_step(
     ctx: CallbackContext, action: ActionData
 ) -> None:
-    now = datetime.now(tz=UTC)
+    now = datetime.now(tz=pytz.UTC)
     print(now)
     print(action.execute_at)
     if action.execute_at > now:

@@ -1,6 +1,6 @@
 import dataclasses
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 
 
 @dataclasses.dataclass(slots=True, kw_only=True)
@@ -14,7 +14,7 @@ class PollData:
     no: int
 
 
-class PipelineStep(StrEnum):
+class PipelineStep(str, Enum):
     START = "start"
     POLL = "poll"
     CONSENSUS = "consensus"
@@ -24,7 +24,7 @@ class PipelineStep(StrEnum):
     ERROR = "error"
 
 
-class ActionType(StrEnum):
+class ActionType(str, Enum):
     PIN = "pin"
     DELETE = "delete"
     MUTE = "mute"

@@ -5,7 +5,7 @@ ifneq (,$(wildcard .env))
 endif
 
 SERVICE_NAME=pinhead
-PYTHON_VERSION=3.11.4
+PYTHON_VERSION=3.10.12
 
 .PHONY: deps build
 
@@ -27,7 +27,7 @@ build:
 	docker build --tag ${SERVICE_NAME} --no-cache .
 
 pyenv:
-	echo ${SERVICE_NAME} > .python-version && pyenv install -s 3.11.4 && pyenv virtualenv -f 3.11.4 ${SERVICE_NAME}
+	echo ${SERVICE_NAME} > .python-version && pyenv install -s ${PYTHON_VERSION} && pyenv virtualenv -f ${PYTHON_VERSION} ${SERVICE_NAME}
 
 pyenv-delete:
 	pyenv virtualenv-delete -f ${SERVICE_NAME}
