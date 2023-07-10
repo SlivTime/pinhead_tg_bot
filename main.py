@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     format="%(name)s - %(levelname)s - %(message)s",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 
