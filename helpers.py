@@ -73,6 +73,7 @@ def iterate_polls(bot_data: dict[str, Any]) -> Generator[PollData, None, None]:
         for k, v in bot_data.items()
         if k.startswith(POLL_PREFIX)
     ]
+    logger.info(f"Found polls: {polls}")
     yield from polls
 
 
@@ -84,7 +85,7 @@ def iterate_scheduled_actions(
         for k, v in bot_data.items()
         if k.startswith(JOB_PREFIX)
     ]
-    logger.info(f"Found actions: {actions}")
+    # logger.info(f"Found actions: {actions}")
     yield from actions
 
 
