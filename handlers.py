@@ -53,13 +53,19 @@ def pipeline_start_fabric(action_type: ActionType):
             start_at=now,
             consensus=DEFAULT_CONSENSUS,
             execute_at=now,
-            duration=DEFAULT_ACTION_DURATION,
+            duration=_get_action_duration(action_type),
         )
         await store_action(context, action)
         logger.info("Action stored, run pipeline")
         run_pipeline_now(context)
 
     return start_pipeline
+
+
+def _get_action_duration(action_type: ActionType) -> int:
+    if action_type in {ActionType.PIN, ActionType.BAN, ActionType.MUTE}:
+        return DEFAULT_ACTION_DURATION
+    return 0
 
 
 def _extract_target(
