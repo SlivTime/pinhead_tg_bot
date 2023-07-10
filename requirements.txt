@@ -2,3 +2,5 @@ python-telegram-bot[ext]==20.4
 aiohttp==3.8.4
 marshmallow-recipe==0.0.22
 click==8.1.4
+pymongo==4.4.0
+mongopersistence==0.3.0

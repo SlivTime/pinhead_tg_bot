@@ -2,6 +2,7 @@ import logging
 import os
 
 import click
+from mongopersistence import MongoPersistence
 from telegram.ext import ApplicationBuilder
 
 from config import create_config
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     format="%(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
 
 
@@ -20,7 +21,22 @@ logging.basicConfig(
 def start_bot(polling: bool = False):
     cfg = create_config(os.environ)
 
-    application = ApplicationBuilder().token(cfg.tg_api_token).build()
+    persistence = MongoPersistence(
+        mongo_url=cfg.mongo_uri,
+        db_name=cfg.mongo_db_name,
+        name_col_user_data="user_data",
+        name_col_chat_data="chat_data",
+        name_col_bot_data="bot_data",
+        create_col_if_not_exist=True,
+        ignore_general_data=["cache"],
+    )
+
+    application = (
+        ApplicationBuilder()
+        .token(cfg.tg_api_token)
+        .persistence(persistence)
+        .build()
+    )
 
     setup_handlers(application)
 
