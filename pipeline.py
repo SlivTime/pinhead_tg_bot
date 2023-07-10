@@ -148,8 +148,6 @@ async def process_pipeline_step(
     ctx: CallbackContext, action: ActionData
 ) -> None:
     now = datetime.now(tz=pytz.UTC)
-    print(now)
-    print(action.execute_at)
     if action.execute_at > now:
         logger.info(f"Action {action.id} is not ready to execute")
         return

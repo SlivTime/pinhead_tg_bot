@@ -106,6 +106,7 @@ async def register_poll_answer(
         return
 
     await store_poll(context, poll_data)
+    run_pipeline_now(context)
 
 
 async def bot_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
