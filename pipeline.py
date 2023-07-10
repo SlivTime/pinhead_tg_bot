@@ -152,6 +152,7 @@ async def process_pipeline_step(
         logger.info(f"Action {action.id} is not ready to execute")
         return
 
+    current_step = action.step
     next_step = None
     match action.step:
         case PipelineStep.START:
@@ -175,7 +176,8 @@ async def process_pipeline_step(
     if next_step:
         action.step = next_step
         await store_action(ctx, action)
-        run_pipeline_now(ctx)
+        if current_step != next_step:
+            run_pipeline_now(ctx)
     else:
         logger.info("We are done with this action")
 
