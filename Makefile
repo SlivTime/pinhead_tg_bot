@@ -5,7 +5,7 @@ ifneq (,$(wildcard .env))
 endif
 
 SERVICE_NAME=pinhead
-PYTHON_VERSION=3.10.12
+PYTHON_VERSION=3.11.4
 
 .PHONY: deps build
 
@@ -25,6 +25,9 @@ lint:
 
 build:
 	docker build --tag ${SERVICE_NAME} --no-cache .
+
+deploy: build
+	flyctl deploy
 
 pyenv:
 	echo ${SERVICE_NAME} > .python-version && pyenv install -s ${PYTHON_VERSION} && pyenv virtualenv -f ${PYTHON_VERSION} ${SERVICE_NAME}

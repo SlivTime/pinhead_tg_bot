@@ -20,7 +20,7 @@ async def store_action(ctx: CallbackContext, action: ActionData) -> None:
     action_key = get_action_key(action)
     action_dump = mr.dump(action)
     ctx.bot_data.update({action_key: action_dump})
-    logger.debug(f"Stored action: {action_key} - {action_dump}")
+    logger.info(f"Stored action: {action_key} - {action_dump}")
 
 
 async def store_poll(ctx: CallbackContext, poll_data: PollData) -> None:
@@ -80,13 +80,10 @@ def iterate_polls(bot_data: dict[str, Any]) -> Generator[PollData, None, None]:
 def iterate_scheduled_actions(
     bot_data: dict[str, Any]
 ) -> Generator[ActionData, None, None]:
-    actions = [
-        mr.load(ActionData, v)
-        for k, v in bot_data.items()
-        if k.startswith(JOB_PREFIX)
-    ]
-    # logger.info(f"Found actions: {actions}")
-    yield from actions
+    raw_actions = [v for k, v in bot_data.items() if k.startswith(JOB_PREFIX)]
+    logger.info(f"Found actions: {raw_actions}")
+    for action in raw_actions:
+        yield mr.load(ActionData, action)
 
 
 def generate_random_str(length: int = 10) -> str:

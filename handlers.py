@@ -36,10 +36,10 @@ def pipeline_start_fabric(action_type: ActionType):
         update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         now = datetime.now(tz=pytz.UTC)
-        target = _extract_target(action_type, update.message)
+        target_msg, target_user = _extract_targets(update.message)
         chat_id = update.effective_chat.id if update.effective_chat else None
-        if not target:
-            logger.warning("Can't extract target, ignore")
+        if not any([target_msg, target_user]):
+            logger.warning("Can't extract any target, ignore")
             return
         if not chat_id:
             logger.error("Chat id not found, ignore")
@@ -47,7 +47,8 @@ def pipeline_start_fabric(action_type: ActionType):
         action = ActionData(
             id=generate_random_str(),
             chat_id=chat_id,
-            target_id=str(target.id),
+            target_message_id=str(ensured(target_msg).id),
+            target_user_id=str(target_user.id) if target_user else None,
             action_type=action_type,
             step=PipelineStep.START,
             start_at=now,
@@ -68,22 +69,15 @@ def _get_action_duration(action_type: ActionType) -> int:
     return 0
 
 
-def _extract_target(
-    action_type: ActionType, message: Message | None
-) -> Message | User | None:
+def _extract_targets(
+    message: Message | None,
+) -> tuple[Message | None, User | None]:
     if message is None:
-        return None
-    match action_type:
-        case ActionType.PIN | ActionType.DELETE:
-            return message.reply_to_message if message else None
-        case ActionType.MUTE | ActionType.BAN | ActionType.PURGE:
-            return (
-                message.reply_to_message.from_user
-                if message and message.reply_to_message
-                else None
-            )
+        return None, None
 
-    return None
+    target_msg = message.reply_to_message
+    target_user = target_msg.from_user if target_msg else None
+    return target_msg, target_user
 
 
 async def register_poll_answer(

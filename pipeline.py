@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from typing import cast
 
 import pytz
+import telegram
+from telegram import ChatPermissions
 from telegram.ext import CallbackContext, JobQueue
 
 from constants import YES_NO_OPTIONS
@@ -30,7 +32,7 @@ async def start_poll(
         YES_NO_OPTIONS,
         is_anonymous=False,
         allows_multiple_answers=False,
-        reply_to_message_id=action.target_id,
+        reply_to_message_id=action.target_message_id,
     )
     poll_data = PollData(
         id=message.poll.id,
@@ -80,37 +82,40 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
         case ActionType.PIN:
             await ctx.bot.pin_chat_message(
                 action.chat_id,
-                action.target_id,
+                action.target_message_id,
             )
         case ActionType.DELETE:
             await ctx.bot.delete_message(
                 action.chat_id,
-                action.target_id,
+                action.target_message_id,
             )
         case ActionType.BAN:
             await ctx.bot.ban_chat_member(
                 action.chat_id,
-                action.target_id,
+                action.target_user_id,
                 until_date=datetime.now(tz=pytz.UTC)
                 + timedelta(seconds=action.duration),
             )
         case ActionType.PURGE:
             await ctx.bot.ban_chat_member(
                 action.chat_id,
-                action.target_id,
+                action.target_user_id,
                 until_date=0,
                 revoke_messages=True,
             )
         case ActionType.MUTE:
-            await ctx.bot.restrict_chat_member(
-                action.chat_id,
-                action.target_id,
-                until_date=datetime.now(tz=pytz.UTC)
-                + timedelta(seconds=action.duration),
+            permissions = ChatPermissions(
                 can_send_messages=False,
                 can_send_media_messages=False,
                 can_send_other_messages=False,
                 can_add_web_page_previews=False,
+            )
+            await ctx.bot.restrict_chat_member(
+                action.chat_id,
+                action.target_user_id,
+                until_date=datetime.now(tz=pytz.UTC)
+                + timedelta(seconds=action.duration),
+                permissions=permissions,
             )
         case _:
             logger.warning("Not implemented yet")
@@ -166,7 +171,12 @@ async def process_pipeline_step(
             )
             action, next_step = await handle_consensus(ctx, action)
         case PipelineStep.EXECUTE:
-            action, next_step = await execute_action(ctx, action)
+            try:
+                action, next_step = await execute_action(ctx, action)
+            except telegram.error.BadRequest as e:
+                logger.exception("Failed to execute action")
+                await report_error(ctx, action, e)
+                next_step = PipelineStep.ERROR
             logger.debug("Execute action")
         case PipelineStep.REVERT:
             action, next_step = await execute_revert(ctx, action)
@@ -180,6 +190,15 @@ async def process_pipeline_step(
             run_pipeline_now(ctx)
     else:
         logger.info("We are done with this action")
+
+
+async def report_error(
+    ctx: CallbackContext, action: ActionData, err: telegram.error.BadRequest
+) -> None:
+    await ctx.bot.send_message(
+        chat_id=action.chat_id,
+        text=f"Я попробовал, но чот не получается, сорян:\n\t{err.message}",
+    )
 
 
 async def execute_scheduled_actions(ctx: CallbackContext) -> None:
