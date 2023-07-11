@@ -1,4 +1,5 @@
 -r requirements.txt
 pre-commit==3.3.3
 types-click==7.1.8
+motor-stubs
 mypy==1.1.1
