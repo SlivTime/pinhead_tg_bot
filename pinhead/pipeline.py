@@ -8,9 +8,9 @@ import telegram
 from telegram import ChatPermissions
 from telegram.ext import CallbackContext, JobQueue
 
-from constants import YES_NO_OPTIONS
-from data import ActionData, ActionType, PipelineStep, PollData
-from helpers import (
+from .constants import YES_NO_OPTIONS
+from .data import ActionData, ActionType, PipelineStep, PollData
+from .helpers import (
     find_poll_data,
     iterate_scheduled_actions,
     remove_action,
@@ -131,10 +131,19 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
 async def execute_revert(ctx, action) -> tuple[ActionData, PipelineStep]:
     match action.action_type:
         case ActionType.PIN:
-            await ctx.bot.unpin_chat_message(
-                action.chat_id,
-                action.target_id,
-            )
+            try:
+                await ctx.bot.unpin_chat_message(
+                    action.chat_id,
+                    action.target_message_id,
+                )
+            except telegram.error.BadRequest as e:
+                if e.message == "Chat not found":
+                    logger.warning(
+                        f"Chat {action.chat_id} not found, skip unpin"
+                    )
+                else:
+                    raise e
+
         case _:
             logger.warning("Not implemented yet")
 

@@ -5,8 +5,8 @@ import click
 from mongopersistence import MongoPersistence
 from telegram.ext import ApplicationBuilder
 
-from config import create_config
-from handlers import setup_handlers
+from pinhead.config import create_config
+from pinhead.handlers import setup_handlers
 
 logger = logging.getLogger(__name__)
 

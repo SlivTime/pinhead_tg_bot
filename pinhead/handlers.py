@@ -10,7 +10,7 @@ from telegram.ext import (
     PollAnswerHandler,
 )
 
-from constants import (
+from .constants import (
     DEFAULT_ACTION_DURATION,
     DEFAULT_CONSENSUS,
     NO,
@@ -18,15 +18,15 @@ from constants import (
     YES,
     YES_NO_OPTIONS,
 )
-from data import ActionData, ActionType, PipelineStep
-from helpers import (
+from .data import ActionData, ActionType, PipelineStep
+from .helpers import (
     ensured,
     find_poll_data,
     generate_random_str,
     store_action,
     store_poll,
 )
-from pipeline import execute_scheduled_actions, run_pipeline_now
+from .pipeline import execute_scheduled_actions, run_pipeline_now
 
 logger = logging.getLogger(__name__)
 

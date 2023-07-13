@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 import marshmallow_recipe as mr
 from telegram.ext import CallbackContext
 
-from data import ActionData, PollData
+from pinhead.data import ActionData, PollData
 
 logger = logging.getLogger(__name__)
 
