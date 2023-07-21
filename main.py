@@ -3,7 +3,8 @@ import os
 
 import click
 from mongopersistence import MongoPersistence
-from telegram.ext import ApplicationBuilder
+from motor.motor_asyncio import AsyncIOMotorClient
+from telegram.ext import Application, ApplicationBuilder
 
 from pinhead.config import create_config
 from pinhead.handlers import setup_handlers
@@ -16,12 +17,18 @@ logging.basicConfig(
 )
 
 
+class DBApplication(Application):
+    def __init__(self, db: AsyncIOMotorClient, **kwargs):
+        super().__init__(**kwargs)
+        self.db = db
+
+
 @click.command()
 @click.option("--polling", is_flag=True)
 def start_bot(polling: bool = False):
     cfg = create_config(os.environ)
 
-    persistence = MongoPersistence(
+    MongoPersistence(
         mongo_url=cfg.mongo_uri,
         db_name=cfg.mongo_db_name,
         name_col_user_data="user_data",
@@ -33,8 +40,16 @@ def start_bot(polling: bool = False):
 
     application = (
         ApplicationBuilder()
+        .application_class(
+            DBApplication,
+            kwargs={
+                "db": AsyncIOMotorClient(cfg.mongo_uri).get_database(
+                    cfg.mongo_db_name
+                ),
+            },
+        )
         .token(cfg.tg_api_token)
-        .persistence(persistence)
+        # .persistence(persistence)
         .build()
     )
 

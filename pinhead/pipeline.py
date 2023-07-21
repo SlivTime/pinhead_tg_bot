@@ -1,31 +1,34 @@
 import asyncio
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import cast
 
-import pytz
 import telegram
 from telegram import ChatPermissions
 from telegram.ext import CallbackContext, JobQueue
 
-from .constants import YES_NO_OPTIONS
-from .data import ActionData, ActionType, PipelineStep, PollData
-from .helpers import (
-    find_poll_data,
-    iterate_scheduled_actions,
-    remove_action,
-    remove_poll,
-    store_action,
+from pinhead.db import (
+    change_step,
+    fetch_ready_actions,
     store_poll,
+    store_poll_result,
 )
+
+from .constants import (
+    DEFAULT_CONSENSUS,
+    NO_IDX,
+    YES_IDX,
+    YES_NO_OPTIONS,
+)
+from .data import ActionData, ActionType, PipelineStep, PollData
+from .helpers import get_db
 
 logger = logging.getLogger(__name__)
 lock = asyncio.Lock()
 
 
-async def start_poll(
-    ctx: CallbackContext, action: ActionData
-) -> tuple[ActionData, PipelineStep]:
+async def start_poll(ctx: CallbackContext, action: ActionData) -> PipelineStep:
     message = await ctx.bot.send_poll(
         action.chat_id,
         f"{action.action_type.lower().capitalize()}?",
@@ -36,48 +39,62 @@ async def start_poll(
     )
     poll_data = PollData(
         id=message.poll.id,
-        action_id=action.id,
         options=YES_NO_OPTIONS,
         message_id=message.message_id,
-        chat_id=action.chat_id,
-        yes=0,
-        no=0,
+        consensus=DEFAULT_CONSENSUS,
+        win_result=None,
+        votes=[],
     )
-    await store_poll(ctx=ctx, poll_data=poll_data)
-    action.poll_id = poll_data.id
-    return action, PipelineStep.POLL
+    await store_poll(get_db(ctx), action_data=action, poll_data=poll_data)
+    return PipelineStep.POLL
 
 
-async def check_poll_state(ctx, action) -> tuple[ActionData, PipelineStep]:
-    poll_data = find_poll_data(ctx, action.poll_id)
-    if poll_data is None:
-        logger.error(f"Poll data not found: {action.poll_id}")
-        return action, PipelineStep.ERROR
-    max_vote_count = max([poll_data.yes, poll_data.no])
-    if max_vote_count >= action.consensus:
+async def check_poll_state(
+    ctx: CallbackContext, action: ActionData
+) -> PipelineStep:
+    if action.poll is None:
+        logger.error(f"Poll data not found: {action}")
+        return PipelineStep.ERROR
+    current_vote_results = calculate_poll_results(action)
+    max_vote_count = max(current_vote_results.values())
+    if max_vote_count >= action.poll.consensus:
         await ctx.bot.stop_poll(
-            chat_id=poll_data.chat_id, message_id=poll_data.message_id
+            chat_id=action.chat_id, message_id=action.poll.message_id
         )
         logger.info("Poll is done, consensus reached")
-        return action, PipelineStep.CONSENSUS
+        return PipelineStep.CONSENSUS
     logger.info("Poll is still running, keep current step")
-    return action, action.step
+    return action.step
 
 
-async def handle_consensus(ctx, action) -> tuple[ActionData, PipelineStep]:
-    poll_data = find_poll_data(ctx, action.poll_id)
-    if poll_data is None:
-        logger.error(f"Poll data not found: {action.poll_id}")
-        return action, PipelineStep.ERROR
-    if poll_data.yes > poll_data.no:
-        action.poll_decision = True
-        return action, PipelineStep.EXECUTE
-    else:
-        action.poll_decision = False
-        return action, PipelineStep.DONE
+def calculate_poll_results(action: ActionData) -> dict[int, int]:
+    current_vote_results: dict[int, int] = defaultdict(int)
+    if action.poll:
+        for vote in action.poll.votes:
+            for answer in vote.answer:
+                current_vote_results[answer] += 1
+    return current_vote_results
 
 
-async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
+async def handle_consensus(
+    ctx: CallbackContext, action: ActionData
+) -> PipelineStep:
+    if action.poll is None:
+        logger.error(f"Poll data not found: {action.action_id}")
+        return PipelineStep.ERROR
+    results = calculate_poll_results(action)
+    should_execute = results[YES_IDX] >= results[NO_IDX]
+    logger.info(f"Poll results are ready: {results}")
+    logger.info(f"Should execute: {should_execute}")
+    await store_poll_result(get_db(ctx), action=action, result=should_execute)
+    if should_execute:
+        return PipelineStep.EXECUTE
+    return PipelineStep.DONE
+
+
+async def execute_action(
+    ctx: CallbackContext, action: ActionData
+) -> PipelineStep:
     match action.action_type:
         case ActionType.PIN:
             await ctx.bot.pin_chat_message(
@@ -90,11 +107,11 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
                 action.target_message_id,
             )
         case ActionType.BAN:
+            duration = float(action.duration) if action.duration else 0
             await ctx.bot.ban_chat_member(
                 action.chat_id,
                 action.target_user_id,
-                until_date=datetime.now(tz=pytz.UTC)
-                + timedelta(seconds=action.duration),
+                until_date=datetime.utcnow() + timedelta(seconds=duration),
             )
         case ActionType.PURGE:
             await ctx.bot.ban_chat_member(
@@ -110,25 +127,25 @@ async def execute_action(ctx, action) -> tuple[ActionData, PipelineStep]:
                 can_send_other_messages=False,
                 can_add_web_page_previews=False,
             )
+            duration = float(action.duration) if action.duration else 0
             await ctx.bot.restrict_chat_member(
                 action.chat_id,
                 action.target_user_id,
-                until_date=datetime.now(tz=pytz.UTC)
-                + timedelta(seconds=action.duration),
+                until_date=datetime.utcnow() + timedelta(seconds=duration),
                 permissions=permissions,
             )
         case _:
             logger.warning("Not implemented yet")
 
     if action.duration:
-        action.execute_at = datetime.now(tz=pytz.UTC) + timedelta(
+        action.execute_at = datetime.utcnow() + timedelta(
             seconds=action.duration
         )
-        return action, PipelineStep.REVERT
-    return action, PipelineStep.DONE
+        return PipelineStep.REVERT
+    return PipelineStep.DONE
 
 
-async def execute_revert(ctx, action) -> tuple[ActionData, PipelineStep]:
+async def execute_revert(ctx, action) -> PipelineStep:
     match action.action_type:
         case ActionType.PIN:
             try:
@@ -147,54 +164,49 @@ async def execute_revert(ctx, action) -> tuple[ActionData, PipelineStep]:
         case _:
             logger.warning("Not implemented yet")
 
-    return action, PipelineStep.DONE
-
-
-async def cleanup(ctx, action) -> None:
-    logger.info(f"Cleanup action: {action}")
-    poll_data = find_poll_data(ctx, action.poll_id)
-    if poll_data:
-        await remove_poll(ctx, poll_data)
-    await remove_action(ctx, action)
+    return PipelineStep.DONE
 
 
 async def process_pipeline_step(
     ctx: CallbackContext, action: ActionData
 ) -> None:
-    now = datetime.now(tz=pytz.UTC)
+    now = datetime.utcnow()
     if action.execute_at > now:
-        logger.info(f"Action {action.id} is not ready to execute")
+        logger.info(f"Action {action.action_id} is not ready to execute")
         return
 
     current_step = action.step
     next_step = None
     match action.step:
         case PipelineStep.START:
-            action, next_step = await start_poll(ctx, action)
+            next_step = await start_poll(ctx, action)
         case PipelineStep.POLL:
             logger.debug("Start the poll")
-            action, next_step = await check_poll_state(ctx, action)
+            next_step = await check_poll_state(ctx, action)
         case PipelineStep.CONSENSUS:
             logger.debug(
                 "Need to decide if we should execute base on consensus"
             )
-            action, next_step = await handle_consensus(ctx, action)
+            next_step = await handle_consensus(ctx, action)
         case PipelineStep.EXECUTE:
             try:
-                action, next_step = await execute_action(ctx, action)
+                next_step = await execute_action(ctx, action)
             except telegram.error.BadRequest as e:
                 logger.exception("Failed to execute action")
                 await report_error(ctx, action, e)
                 next_step = PipelineStep.ERROR
             logger.debug("Execute action")
         case PipelineStep.REVERT:
-            action, next_step = await execute_revert(ctx, action)
+            next_step = await execute_revert(ctx, action)
         case PipelineStep.DONE:
-            await cleanup(ctx, action)
+            logger.info(
+                "Pipeline executed successfully", extra={"action": action}
+            )
 
     if next_step:
-        action.step = next_step
-        await store_action(ctx, action)
+        await change_step(
+            get_db(ctx), action_id=action.action_id, step=next_step
+        )
         if current_step != next_step:
             run_pipeline_now(ctx)
     else:
@@ -214,7 +226,7 @@ async def execute_scheduled_actions(ctx: CallbackContext) -> None:
     logger.debug("Execute scheduled actions")
     async with lock:
         logger.info("Got lock")
-        for action in iterate_scheduled_actions(ctx.bot_data):
+        for action in await fetch_ready_actions(get_db(ctx)):
             logger.info(f"Got scheduled action: {action}")
             await process_pipeline_step(ctx, action)
         logger.info("Processed tasks")

@@ -23,6 +23,9 @@ poll:
 lint:
 	pre-commit run --all-files
 
+test:
+	python -m pytest ${path} -vv --cov=pinhead
+
 build:
 	docker build --tag ${SERVICE_NAME} --no-cache .
 
