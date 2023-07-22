@@ -3,17 +3,6 @@ from datetime import datetime
 from enum import StrEnum
 
 
-@dataclasses.dataclass(slots=True, kw_only=True)
-class PollData:
-    id: str
-    action_id: str
-    options: list[str]
-    message_id: str
-    chat_id: int
-    yes: int
-    no: int
-
-
 class PipelineStep(StrEnum):
     START = "start"
     POLL = "poll"
@@ -33,18 +22,38 @@ class ActionType(StrEnum):
 
 
 @dataclasses.dataclass(slots=True, kw_only=True)
-class ActionData:
+class VoteData:
+    user_id: int
+    user_name: str
+    answer: list[int]
+    voted_at: datetime
+
+
+@dataclasses.dataclass(slots=True, kw_only=True)
+class PollData:
     id: str
+    options: list[str]
+    message_id: str
+    consensus: int
+    votes: list[VoteData]
+    win_result: bool | None = None
+
+
+@dataclasses.dataclass(slots=True, kw_only=True)
+class ActionData:
+    action_id: str
     chat_id: int
     target_message_id: str
+    trigger_message_id: str
     target_user_id: str | None
     action_type: ActionType
     step: PipelineStep
     start_at: datetime
     execute_at: datetime
-    poll_id: str | None = None
-    consensus: int | None = None
-    poll_decision: bool = False
+    poll: PollData | None = None
     executed_at: datetime | None = None
     finished_at: datetime | None = None
     duration: int | None = None  # in seconds
+
+
+CHAT_ID = 123

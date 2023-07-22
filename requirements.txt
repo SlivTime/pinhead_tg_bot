@@ -4,3 +4,4 @@ marshmallow-recipe==0.0.22
 click==8.1.4
 pymongo==4.4.0
 mongopersistence==0.3.0
+more_itertools==9.1.0

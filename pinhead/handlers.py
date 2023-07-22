@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from telegram import Message, Update, User
 from telegram.ext import (
     Application,
@@ -10,23 +9,17 @@ from telegram.ext import (
     PollAnswerHandler,
 )
 
-from constants import (
-    DEFAULT_ACTION_DURATION,
-    DEFAULT_CONSENSUS,
-    NO,
-    WAKEUP_PERIOD,
-    YES,
-    YES_NO_OPTIONS,
-)
-from data import ActionData, ActionType, PipelineStep
-from helpers import (
+from pinhead.db import fetch_action_by_poll_id, store_action, store_vote
+
+from .constants import DEFAULT_ACTION_DURATION, WAKEUP_PERIOD
+from .data import ActionData, ActionType, PipelineStep, VoteData
+from .helpers import (
     ensured,
-    find_poll_data,
     generate_random_str,
-    store_action,
-    store_poll,
+    get_db,
+    log_format_action,
 )
-from pipeline import execute_scheduled_actions, run_pipeline_now
+from .pipeline import execute_scheduled_actions, run_pipeline_now
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +28,7 @@ def pipeline_start_fabric(action_type: ActionType):
     async def start_pipeline(
         update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        now = datetime.now(tz=pytz.UTC)
+        now = datetime.utcnow()
         target_msg, target_user = _extract_targets(update.message)
         chat_id = update.effective_chat.id if update.effective_chat else None
         if not any([target_msg, target_user]):
@@ -45,18 +38,19 @@ def pipeline_start_fabric(action_type: ActionType):
             logger.error("Chat id not found, ignore")
             return
         action = ActionData(
-            id=generate_random_str(),
+            action_id=generate_random_str(),
             chat_id=chat_id,
             target_message_id=str(ensured(target_msg).id),
+            trigger_message_id=str(ensured(update.message).id),
             target_user_id=str(target_user.id) if target_user else None,
             action_type=action_type,
             step=PipelineStep.START,
             start_at=now,
-            consensus=DEFAULT_CONSENSUS,
             execute_at=now,
+            # TODO: parse command args, get duration first
             duration=_get_action_duration(action_type),
         )
-        await store_action(context, action)
+        await store_action(get_db(context), action)
         logger.info("Action stored, run pipeline")
         run_pipeline_now(context)
 
@@ -89,28 +83,29 @@ async def register_poll_answer(
         logger.error("Poll answer not found")
         return
     logger.info(f"got answer: {answer}")
-    poll_data = find_poll_data(context, answer.poll_id)
-    if poll_data is None:
-        logger.error(f"Poll data not found: {answer.poll_id}")
+    action = await fetch_action_by_poll_id(
+        get_db(context), poll_id=answer.poll_id
+    )
+    if action is None:
+        logger.error(f"Action data not found: {answer.poll_id}")
         return
 
-    choice_id, *_ = answer.option_ids
-    choice_str = YES_NO_OPTIONS[choice_id]
+    vote_data = VoteData(
+        user_id=answer.user.id,
+        user_name=answer.user.name,
+        answer=list(answer.option_ids),
+        voted_at=datetime.now(tz=UTC),
+    )
+    await store_vote(get_db(context), action.action_id, vote_data=vote_data)
+    logger.info(f"Stored vote {log_format_action(action)} - {vote_data}")
 
-    if choice_str == YES:
-        poll_data.yes += 1
-    elif choice_str == NO:
-        poll_data.no += 1
-    else:
-        logger.error(f"Unknown choice: {choice_str}")
-        return
-
-    await store_poll(context, poll_data)
     run_pipeline_now(context)
 
 
-async def bot_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+async def bot_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"receive help command: {update}")
+    votes_count = await get_db(context).actions.count_documents({})
+    logger.info(f"Count: {votes_count}")
     await ensured(update.message).reply_text(
         "Available commands:\n"
         "/pin - pin message\n"
