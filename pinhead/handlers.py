@@ -13,7 +13,12 @@ from pinhead.db import fetch_action_by_poll_id, store_action, store_vote
 
 from .constants import DEFAULT_ACTION_DURATION, WAKEUP_PERIOD
 from .data import ActionData, ActionType, PipelineStep, VoteData
-from .helpers import ensured, generate_random_str, get_db
+from .helpers import (
+    ensured,
+    generate_random_str,
+    get_db,
+    log_format_action,
+)
 from .pipeline import execute_scheduled_actions, run_pipeline_now
 
 logger = logging.getLogger(__name__)
@@ -36,6 +41,7 @@ def pipeline_start_fabric(action_type: ActionType):
             action_id=generate_random_str(),
             chat_id=chat_id,
             target_message_id=str(ensured(target_msg).id),
+            trigger_message_id=str(ensured(update.message).id),
             target_user_id=str(target_user.id) if target_user else None,
             action_type=action_type,
             step=PipelineStep.START,
@@ -91,6 +97,7 @@ async def register_poll_answer(
         voted_at=datetime.now(tz=UTC),
     )
     await store_vote(get_db(context), action.action_id, vote_data=vote_data)
+    logger.info(f"Stored vote {log_format_action(action)} - {vote_data}")
 
     run_pipeline_now(context)
 

@@ -44,6 +44,7 @@ class ActionData:
     action_id: str
     chat_id: int
     target_message_id: str
+    trigger_message_id: str
     target_user_id: str | None
     action_type: ActionType
     step: PipelineStep

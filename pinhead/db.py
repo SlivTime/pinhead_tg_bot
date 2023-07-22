@@ -42,6 +42,17 @@ async def change_step(
     )
 
 
+async def postpone_action(
+    db: AsyncIOMotorDatabase,
+    action_id: str,
+    next_execution: datetime,
+):
+    return await db.actions.update_one(
+        {"action_id": action_id},
+        {"$set": {"execute_at": next_execution}},
+    )
+
+
 async def store_vote(
     db: AsyncIOMotorDatabase,
     action_id: str,
