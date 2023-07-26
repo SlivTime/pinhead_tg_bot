@@ -118,6 +118,10 @@ async def execute_action(
                 action.target_message_id,
             )
         case ActionType.BAN:
+            await ctx.bot.delete_message(
+                action.chat_id,
+                action.target_message_id,
+            )
             duration = float(action.duration) if action.duration else 0
             await ctx.bot.ban_chat_member(
                 action.chat_id,
