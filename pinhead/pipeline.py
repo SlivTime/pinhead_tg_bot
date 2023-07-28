@@ -111,6 +111,7 @@ async def execute_action(
             await ctx.bot.pin_chat_message(
                 action.chat_id,
                 action.target_message_id,
+                disable_notification=True,
             )
         case ActionType.DELETE:
             await ctx.bot.delete_message(
