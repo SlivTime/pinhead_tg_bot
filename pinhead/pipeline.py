@@ -114,10 +114,15 @@ async def execute_action(
                 disable_notification=True,
             )
         case ActionType.DELETE:
-            await ctx.bot.delete_message(
-                action.chat_id,
-                action.target_message_id,
-            )
+            try:
+                await ctx.bot.delete_message(
+                    action.chat_id,
+                    action.target_message_id,
+                )
+            except telegram.error.BadRequest:
+                logger.info("Failed to delete message")
+                return PipelineStep.ERROR
+
         case ActionType.BAN:
             await ctx.bot.delete_message(
                 action.chat_id,
