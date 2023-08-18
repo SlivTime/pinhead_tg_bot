@@ -260,7 +260,15 @@ async def execute_scheduled_actions(ctx: CallbackContext) -> None:
         logger.info("Got lock")
         for action in await fetch_ready_actions(get_db(ctx)):
             logger.info(f"Got scheduled action: {log_format_action(action)}")
-            await process_pipeline_step(ctx, action)
+            try:
+                await process_pipeline_step(ctx, action)
+            except telegram.error.BadRequest:
+                logger.exception("Failed to process action")
+                await change_step(
+                    get_db(ctx),
+                    action_id=action.action_id,
+                    step=PipelineStep.ERROR,
+                )
         logger.info("Processed tasks")
     logger.debug("Lock released")
 
